@@ -2,6 +2,15 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { 
   Menu, 
   Home, 
@@ -10,8 +19,10 @@ import {
   User, 
   Sparkles,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Edit
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -29,6 +40,11 @@ interface SidebarProps {
 
 const Sidebar = ({ isOpen, onToggle, activeTab, onTabChange, tools }: SidebarProps) => {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [userName, setUserName] = useState(() => {
+    return localStorage.getItem('user_name') || 'Guest User';
+  });
+  const [editName, setEditName] = useState(userName);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const navigationItems = [
     { id: "home", label: "Home", icon: Home },
@@ -36,6 +52,17 @@ const Sidebar = ({ isOpen, onToggle, activeTab, onTabChange, tools }: SidebarPro
     ...tools.map(tool => ({ id: tool.id, label: tool.title, icon: tool.icon })),
     { id: "settings", label: "Settings", icon: Settings },
   ];
+
+  const handleNameUpdate = () => {
+    if (editName.trim()) {
+      setUserName(editName.trim());
+      localStorage.setItem('user_name', editName.trim());
+      toast.success("Profile updated successfully!");
+      setIsDialogOpen(false);
+    } else {
+      toast.error("Name cannot be empty");
+    }
+  };
 
   return (
     <div className={`fixed left-0 top-0 h-full bg-slate-900/95 backdrop-blur-xl border-r border-slate-700/50 transition-all duration-300 z-50 ${isOpen ? 'w-64' : 'w-16'}`}>
@@ -99,18 +126,62 @@ const Sidebar = ({ isOpen, onToggle, activeTab, onTabChange, tools }: SidebarPro
 
       {/* User Profile */}
       <div className="absolute bottom-4 left-4 right-4">
-        <div className={`flex items-center space-x-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50 ${!isOpen && 'justify-center'}`}>
-          <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center">
-            <User className="w-4 h-4 text-white" />
-          </div>
-          
-          {isOpen && (
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-white truncate">Guest User</div>
-              <div className="text-xs text-slate-400">Free Plan</div>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <div className={`flex items-center space-x-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700/50 cursor-pointer hover:bg-slate-700/50 transition-colors ${!isOpen && 'justify-center'}`}>
+              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center">
+                <User className="w-4 h-4 text-white" />
+              </div>
+              
+              {isOpen && (
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-white truncate">{userName}</div>
+                  <div className="text-xs text-slate-400 flex items-center">
+                    <Edit className="w-3 h-3 mr-1" />
+                    Click to edit
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </DialogTrigger>
+          
+          <DialogContent className="sm:max-w-md bg-slate-800 border-slate-700">
+            <DialogHeader>
+              <DialogTitle className="text-white">Edit Profile</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="name" className="text-slate-300">
+                  Display Name
+                </Label>
+                <Input
+                  id="name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="bg-slate-700/50 border-slate-600/50 text-white mt-2"
+                  placeholder="Enter your name"
+                />
+              </div>
+              
+              <div className="flex space-x-2">
+                <Button 
+                  onClick={handleNameUpdate}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                >
+                  Save Changes
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsDialogOpen(false)}
+                  className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -21,21 +21,51 @@ const Settings = () => {
   const [autoSave, setAutoSave] = useState(true);
 
   useEffect(() => {
-    // Load saved settings from localStorage
+    // Auto-apply the provided API key on first load
     const savedApiKey = localStorage.getItem('deepseek_api_key');
+    if (!savedApiKey) {
+      const defaultApiKey = "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";
+      setApiKey(defaultApiKey);
+      localStorage.setItem('deepseek_api_key', defaultApiKey);
+    } else {
+      setApiKey(savedApiKey);
+    }
+
+    // Load other saved settings
     const savedUserName = localStorage.getItem('user_name');
     const savedUserEmail = localStorage.getItem('user_email');
     const savedDarkMode = localStorage.getItem('dark_mode');
     const savedNotifications = localStorage.getItem('notifications');
     const savedAutoSave = localStorage.getItem('auto_save');
 
-    if (savedApiKey) setApiKey(savedApiKey);
     if (savedUserName) setUserName(savedUserName);
     if (savedUserEmail) setUserEmail(savedUserEmail);
     if (savedDarkMode) setDarkMode(savedDarkMode === 'true');
     if (savedNotifications) setNotifications(savedNotifications === 'true');
     if (savedAutoSave) setAutoSave(savedAutoSave === 'true');
   }, []);
+
+  // Auto-save settings when they change
+  useEffect(() => {
+    localStorage.setItem('user_name', userName);
+  }, [userName]);
+
+  useEffect(() => {
+    localStorage.setItem('user_email', userEmail);
+  }, [userEmail]);
+
+  useEffect(() => {
+    localStorage.setItem('dark_mode', darkMode.toString());
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
+
+  useEffect(() => {
+    localStorage.setItem('notifications', notifications.toString());
+  }, [notifications]);
+
+  useEffect(() => {
+    localStorage.setItem('auto_save', autoSave.toString());
+  }, [autoSave]);
 
   const saveSettings = () => {
     localStorage.setItem('deepseek_api_key', apiKey);
@@ -45,7 +75,7 @@ const Settings = () => {
     localStorage.setItem('notifications', notifications.toString());
     localStorage.setItem('auto_save', autoSave.toString());
     
-    toast.success("Settings saved successfully!");
+    toast.success("All settings saved successfully!");
   };
 
   const testApiConnection = async () => {
@@ -53,6 +83,8 @@ const Settings = () => {
       toast.error("Please enter your API key first");
       return;
     }
+
+    toast.info("Testing API connection...");
 
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -76,17 +108,19 @@ const Settings = () => {
       });
 
       if (response.ok) {
-        toast.success("API connection successful!");
+        toast.success("✅ API connection successful!");
       } else {
-        toast.error("API connection failed. Please check your key.");
+        const errorData = await response.json();
+        toast.error(`❌ API connection failed: ${errorData.error?.message || 'Unknown error'}`);
       }
     } catch (error) {
-      toast.error("Failed to test API connection");
+      console.error("API test error:", error);
+      toast.error("❌ Failed to test API connection. Check your internet connection.");
     }
   };
 
   const resetToDefaults = () => {
-    setApiKey("");
+    setApiKey("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");
     setUserName("Guest User");
     setUserEmail("");
     setDarkMode(true);
@@ -210,13 +244,6 @@ const Settings = () => {
                       className="bg-slate-700/50 border-slate-600/50 text-white"
                     />
                   </div>
-                </div>
-
-                <div className="bg-slate-700/30 p-4 rounded-lg">
-                  <h4 className="text-white font-medium mb-2">Account Type</h4>
-                  <Badge className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-blue-500/30 text-blue-200">
-                    Free Plan
-                  </Badge>
                 </div>
               </div>
             </Card>

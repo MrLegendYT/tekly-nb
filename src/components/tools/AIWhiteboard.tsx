@@ -3,7 +3,8 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Users, 
   Pen, 
@@ -20,7 +21,9 @@ import {
   ZoomIn,
   ZoomOut,
   Move,
-  Lightbulb
+  Lightbulb,
+  Save,
+  Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,16 +33,25 @@ interface DrawingTool {
   size: number;
 }
 
+interface DrawingState {
+  strokes: any[];
+  currentStroke: any;
+}
+
 const AIWhiteboard = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState<DrawingTool>({
     type: "pen",
     color: "#3b82f6",
-    size: 2
+    size: 3
   });
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [drawingHistory, setDrawingHistory] = useState<ImageData[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [textInput, setTextInput] = useState("");
+  const [textPosition, setTextPosition] = useState<{ x: number; y: number } | null>(null);
   const [collaborators] = useState([
     { id: 1, name: "Alice", color: "#3b82f6", active: true },
     { id: 2, name: "Bob", color: "#10b981", active: true },
@@ -48,7 +60,8 @@ const AIWhiteboard = () => {
 
   const colors = [
     "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", 
-    "#06b6d4", "#84cc16", "#f97316", "#ec4899", "#6b7280"
+    "#06b6d4", "#84cc16", "#f97316", "#ec4899", "#6b7280",
+    "#ffffff", "#000000"
   ];
 
   const tools = [
@@ -74,49 +87,135 @@ const AIWhiteboard = () => {
     // Set default styles
     ctx.fillStyle = "#1e293b";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Save initial state
+    saveToHistory();
   }, []);
+
+  const saveToHistory = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const newHistory = drawingHistory.slice(0, historyIndex + 1);
+    newHistory.push(imageData);
+    setDrawingHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      setHistoryIndex(historyIndex - 1);
+      ctx.putImageData(drawingHistory[historyIndex - 1], 0, 0);
+      toast.success("↩️ Undo");
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < drawingHistory.length - 1) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      setHistoryIndex(historyIndex + 1);
+      ctx.putImageData(drawingHistory[historyIndex + 1], 0, 0);
+      toast.success("↪️ Redo");
+    }
+  };
+
+  const getMousePos = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) / zoom - panOffset.x,
+      y: (e.clientY - rect.top) / zoom - panOffset.y
+    };
+  };
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / zoom - panOffset.x;
-    const y = (e.clientY - rect.top) / zoom - panOffset.y;
-
+    const pos = getMousePos(e);
     setIsDrawing(true);
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    if (tool.type === "text") {
+      setTextPosition(pos);
+      return;
+    }
+
     ctx.beginPath();
-    ctx.moveTo(x, y);
+    ctx.moveTo(pos.x, pos.y);
     ctx.strokeStyle = tool.color;
     ctx.lineWidth = tool.size;
     ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    if (tool.type === "eraser") {
+      ctx.globalCompositeOperation = "destination-out";
+    } else {
+      ctx.globalCompositeOperation = "source-over";
+    }
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+    if (!isDrawing || tool.type === "text") return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / zoom - panOffset.x;
-    const y = (e.clientY - rect.top) / zoom - panOffset.y;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    if (tool.type === "pen") {
-      ctx.lineTo(x, y);
+    const pos = getMousePos(e);
+
+    if (tool.type === "pen" || tool.type === "eraser") {
+      ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
     }
   };
 
   const stopDrawing = () => {
+    if (isDrawing && tool.type !== "text") {
+      saveToHistory();
+    }
     setIsDrawing(false);
+  };
+
+  const addText = () => {
+    if (!textPosition || !textInput.trim()) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = tool.color;
+    ctx.font = `${tool.size * 6}px Inter, sans-serif`;
+    ctx.fillText(textInput, textPosition.x, textPosition.y);
+
+    setTextInput("");
+    setTextPosition(null);
+    saveToHistory();
+    toast.success("✏️ Text added!");
   };
 
   const clearCanvas = () => {
@@ -128,7 +227,44 @@ const AIWhiteboard = () => {
 
     ctx.fillStyle = "#1e293b";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    toast.success("Canvas cleared!");
+    saveToHistory();
+    toast.success("🧹 Canvas cleared!");
+  };
+
+  const saveCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    try {
+      const dataURL = canvas.toDataURL('image/png');
+      localStorage.setItem('nebula_whiteboard', dataURL);
+      toast.success("💾 Canvas saved!");
+    } catch (error) {
+      toast.error("Failed to save canvas");
+    }
+  };
+
+  const loadCanvas = () => {
+    const savedCanvas = localStorage.getItem('nebula_whiteboard');
+    if (!savedCanvas) {
+      toast.info("No saved canvas found");
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      saveToHistory();
+      toast.success("📂 Canvas loaded!");
+    };
+    img.src = savedCanvas;
   };
 
   const exportCanvas = () => {
@@ -136,22 +272,40 @@ const AIWhiteboard = () => {
     if (!canvas) return;
 
     const link = document.createElement("a");
-    link.download = "whiteboard.png";
+    link.download = `nebula-whiteboard-${new Date().toISOString().split('T')[0]}.png`;
     link.href = canvas.toDataURL();
     link.click();
-    toast.success("Canvas exported!");
+    toast.success("📥 Canvas exported!");
   };
 
   const generateAISuggestion = () => {
-    toast.info("AI suggestions: Try grouping related elements or adding connecting lines between concepts!");
+    const suggestions = [
+      "Try grouping related elements with different colors",
+      "Add connecting lines between related concepts",
+      "Use consistent shapes for similar types of content",
+      "Consider adding labels or titles to your sections",
+      "Try using the text tool to add explanations",
+      "Use different line thicknesses to show hierarchy"
+    ];
+    
+    const randomSuggestion = suggestions[Math.floor(Math.random() * suggestions.length)];
+    toast.info(`💡 AI Suggestion: ${randomSuggestion}`);
   };
 
   const zoomIn = () => {
-    setZoom(prev => Math.min(prev + 0.1, 3));
+    setZoom(prev => {
+      const newZoom = Math.min(prev + 0.2, 3);
+      toast.success(`🔍 Zoom: ${Math.round(newZoom * 100)}%`);
+      return newZoom;
+    });
   };
 
   const zoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.1, 0.5));
+    setZoom(prev => {
+      const newZoom = Math.max(prev - 0.2, 0.3);
+      toast.success(`🔍 Zoom: ${Math.round(newZoom * 100)}%`);
+      return newZoom;
+    });
   };
 
   return (
@@ -221,9 +375,10 @@ const AIWhiteboard = () => {
                     key={color}
                     onClick={() => setTool({ ...tool, color })}
                     className={`w-6 h-6 rounded-full border-2 ${
-                      tool.color === color ? 'border-white' : 'border-slate-600'
+                      tool.color === color ? 'border-white ring-2 ring-blue-400' : 'border-slate-600'
                     }`}
                     style={{ backgroundColor: color }}
+                    title={color}
                   />
                 ))}
               </div>
@@ -231,19 +386,45 @@ const AIWhiteboard = () => {
               {/* Brush Size */}
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-slate-400">Size:</span>
-                <input
-                  type="range"
-                  min="1"
-                  max="20"
-                  value={tool.size}
-                  onChange={(e) => setTool({ ...tool, size: parseInt(e.target.value) })}
-                  className="w-16"
-                />
-                <span className="text-sm text-slate-300 w-6">{tool.size}</span>
+                <Select value={tool.size.toString()} onValueChange={(value) => setTool({ ...tool, size: parseInt(value) })}>
+                  <SelectTrigger className="w-20 bg-gradient-to-r from-slate-700/50 to-slate-600/50 border-slate-600/50 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gradient-to-r from-slate-800 to-slate-700 border-slate-700 text-white">
+                    <SelectItem value="1" className="text-white focus:bg-slate-600/50">1px</SelectItem>
+                    <SelectItem value="2" className="text-white focus:bg-slate-600/50">2px</SelectItem>
+                    <SelectItem value="3" className="text-white focus:bg-slate-600/50">3px</SelectItem>
+                    <SelectItem value="5" className="text-white focus:bg-slate-600/50">5px</SelectItem>
+                    <SelectItem value="8" className="text-white focus:bg-slate-600/50">8px</SelectItem>
+                    <SelectItem value="12" className="text-white focus:bg-slate-600/50">12px</SelectItem>
+                    <SelectItem value="20" className="text-white focus:bg-slate-600/50">20px</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             <div className="flex items-center space-x-2">
+              {/* History Controls */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={undo}
+                disabled={historyIndex <= 0}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700/50 disabled:opacity-50"
+              >
+                <Undo className="w-4 h-4" />
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={redo}
+                disabled={historyIndex >= drawingHistory.length - 1}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700/50 disabled:opacity-50"
+              >
+                <Redo className="w-4 h-4" />
+              </Button>
+
               {/* Zoom Controls */}
               <div className="flex items-center space-x-1">
                 <Button
@@ -279,9 +460,29 @@ const AIWhiteboard = () => {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={saveCanvas}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700/50"
+              >
+                <Save className="w-4 h-4 mr-1" />
+                Save
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadCanvas}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700/50"
+              >
+                Load
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={clearCanvas}
                 className="border-slate-600 text-slate-300 hover:bg-slate-700/50"
               >
+                <Trash2 className="w-4 h-4 mr-1" />
                 Clear
               </Button>
 
@@ -294,27 +495,43 @@ const AIWhiteboard = () => {
                 <Download className="w-4 h-4 mr-1" />
                 Export
               </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-slate-600 text-slate-300 hover:bg-slate-700/50"
-              >
-                <Share className="w-4 h-4 mr-1" />
-                Share
-              </Button>
             </div>
           </div>
         </Card>
+
+        {/* Text Input Modal */}
+        {textPosition && (
+          <Card className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-800/90 backdrop-blur-sm border-slate-700/50 p-4 z-50">
+            <div className="space-y-4">
+              <h3 className="text-white font-semibold">Add Text</h3>
+              <Input
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder="Enter text..."
+                className="bg-slate-700/50 border-slate-600/50 text-white"
+                onKeyPress={(e) => e.key === 'Enter' && addText()}
+                autoFocus
+              />
+              <div className="flex space-x-2">
+                <Button onClick={addText} className="bg-gradient-to-r from-green-600 to-teal-600">
+                  Add Text
+                </Button>
+                <Button variant="outline" onClick={() => setTextPosition(null)} className="border-slate-600 text-slate-300">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Canvas */}
         <Card className="bg-slate-800/40 backdrop-blur-sm border-slate-700/50 p-4">
           <div className="relative">
             <canvas
               ref={canvasRef}
-              width={800}
-              height={600}
-              className="w-full h-[600px] bg-slate-700 rounded-lg cursor-crosshair"
+              width={1200}
+              height={700}
+              className="w-full h-[700px] bg-slate-700 rounded-lg cursor-crosshair border border-slate-600/30"
               onMouseDown={startDrawing}
               onMouseMove={draw}
               onMouseUp={stopDrawing}
@@ -323,9 +540,10 @@ const AIWhiteboard = () => {
             />
             
             {/* Canvas Overlay Info */}
-            <div className="absolute top-4 left-4 bg-slate-900/80 backdrop-blur-sm rounded-lg p-2">
-              <div className="text-xs text-slate-300">
-                Tool: {tool.type} | Size: {tool.size} | Zoom: {Math.round(zoom * 100)}%
+            <div className="absolute top-4 left-4 bg-slate-900/80 backdrop-blur-sm rounded-lg p-3">
+              <div className="text-xs text-slate-300 space-y-1">
+                <div>Tool: {tool.type} | Size: {tool.size}px | Zoom: {Math.round(zoom * 100)}%</div>
+                <div>Color: <span className="inline-block w-3 h-3 rounded-full ml-1" style={{ backgroundColor: tool.color }}></span></div>
               </div>
             </div>
 
@@ -333,13 +551,13 @@ const AIWhiteboard = () => {
             <div className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-sm rounded-lg p-3 max-w-xs">
               <div className="flex items-center space-x-2 mb-2">
                 <Lightbulb className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm font-semibold text-white">AI Suggestions</span>
+                <span className="text-sm font-semibold text-white">Quick Tips</span>
               </div>
-              <div className="text-xs text-slate-300">
-                • Group related elements together
-                • Add connecting lines between concepts
-                • Use consistent colors for categories
-                • Consider adding labels to shapes
+              <div className="text-xs text-slate-300 space-y-1">
+                <div>• Click colors to change brush color</div>
+                <div>• Use text tool to add labels</div>
+                <div>• Save your work with the save button</div>
+                <div>• Use undo/redo for corrections</div>
               </div>
             </div>
           </div>
