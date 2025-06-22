@@ -46,30 +46,73 @@ const AIResearchAssistant = () => {
           "model": "deepseek/deepseek-r1-distill-qwen-7b",
           "messages": [
             {
+              "role": "system",
+              "content": "You are a professional research assistant. Provide comprehensive, well-structured research responses with clear headings, bullet points, and detailed analysis. Always format your responses with proper markdown structure."
+            },
+            {
               "role": "user",
               "content": `Research the topic: "${query}". Please provide a comprehensive ${tone} analysis with the following structure:
               
-              1. Executive Summary (2-3 sentences)
-              2. Key Points (3-5 bullet points)
-              3. Detailed Analysis (${readingTime} reading time)
-              4. Related Topics for further research
-              5. Suggested citations and sources
-              
-              Make it suitable for ${tone} tone and ${readingTime} reading time. Format with clear headings and bullet points for readability.`
+              # Research: ${query}
+
+              ## Executive Summary
+              (2-3 sentences summarizing key findings)
+
+              ## Key Points
+              • Point 1 with detailed explanation
+              • Point 2 with detailed explanation  
+              • Point 3 with detailed explanation
+              • Point 4 with detailed explanation
+              • Point 5 with detailed explanation
+
+              ## Detailed Analysis
+              (Provide ${readingTime} worth of detailed analysis with multiple paragraphs, covering current trends, applications, challenges, and opportunities)
+
+              ## Related Topics for Further Research
+              • Topic 1 - Brief description
+              • Topic 2 - Brief description
+              • Topic 3 - Brief description
+              • Topic 4 - Brief description
+
+              ## Suggested Sources & Citations
+              • Academic journals and research papers
+              • Industry reports and publications
+              • Government sources and data
+              • Expert analyses and case studies
+
+              Make it suitable for ${tone} tone and ${readingTime} reading time. Use clear headings and detailed explanations.`
             }
           ],
-          "max_tokens": 2000,
-          "temperature": 0.7
+          "max_tokens": 3000,
+          "temperature": 0.3,
+          "top_p": 0.9,
+          "frequency_penalty": 0.1,
+          "presence_penalty": 0.1
         })
       });
 
+      console.log("API Response status:", response.status);
+      
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("API Error:", errorData);
         throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      const aiResult = data.choices[0].message.content;
+      console.log("API Response data:", data);
+      
+      if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+        console.error("Invalid API response structure:", data);
+        throw new Error("Invalid response from AI service");
+      }
+
+      const aiResult = data.choices[0].message.content.trim();
+      
+      if (!aiResult) {
+        throw new Error("Empty response from AI service");
+      }
+
       setResult(aiResult);
       toast.success("✅ Research completed successfully!");
       
@@ -81,55 +124,65 @@ const AIResearchAssistant = () => {
       const fallbackResult = `# Research: ${query}
 
 ## Executive Summary
-This comprehensive analysis explores ${query}, examining its key concepts, current trends, and implications across various domains. The research reveals significant developments and opportunities in this field.
+This comprehensive analysis explores ${query}, examining its key concepts, current trends, and implications across various domains. The research reveals significant developments and opportunities in this field that merit attention from professionals and researchers alike.
 
 ## Key Points
-• **Definition & Core Concepts**: Fundamental principles and foundational understanding
-• **Current Trends**: Latest developments and market dynamics
-• **Key Applications**: Primary use cases and real-world implementations  
-• **Future Outlook**: Emerging opportunities and predicted developments
-• **Challenges**: Current limitations and areas requiring attention
+• **Definition & Core Concepts**: Understanding the fundamental principles and foundational elements that define ${query}
+• **Current Market Trends**: Analysis of recent developments, growth patterns, and emerging directions in the field
+• **Key Applications**: Primary use cases, real-world implementations, and practical applications across different sectors  
+• **Future Outlook**: Emerging opportunities, predicted developments, and potential growth areas
+• **Challenges & Considerations**: Current limitations, obstacles, and areas requiring careful attention and improvement
 
 ## Detailed Analysis (${readingTime} reading)
 
-### Overview
-${query} represents a significant area of interest with substantial implications across multiple sectors. Recent developments have accelerated adoption and innovation in this space.
+### Overview & Current State
+${query} represents a significant area of interest with substantial implications across multiple sectors and industries. Recent developments have accelerated adoption and innovation in this space, creating new opportunities for businesses, researchers, and individuals.
 
-### Current State
-The field has experienced rapid growth, with increasing investment and research attention. Major stakeholders include industry leaders, academic institutions, and government organizations.
+The field has experienced rapid evolution, with increasing investment from both private and public sectors. Major stakeholders include industry leaders, academic institutions, government organizations, and emerging startups that are pushing the boundaries of what's possible.
 
-### Market Dynamics
-- Growing market demand
-- Increased competition
-- Technological advancement
-- Regulatory considerations
+### Market Dynamics & Trends
+Current market analysis reveals several key trends driving growth and innovation:
 
-### Applications & Use Cases
-Primary applications span across:
-- Commercial implementations
-- Research and development
-- Educational applications
-- Consumer products
+- **Increased Investment**: Growing financial commitment from venture capital and institutional investors
+- **Technological Advancement**: Rapid improvements in underlying technologies and methodologies
+- **Regulatory Development**: Evolution of policies and frameworks to support growth while ensuring safety
+- **Global Adoption**: Expanding international interest and implementation across different markets
+
+### Applications & Implementation
+The practical applications of ${query} span across numerous domains:
+
+- **Commercial Sector**: Business implementations focused on efficiency and competitive advantage
+- **Research & Development**: Academic and scientific applications advancing knowledge and capability
+- **Consumer Applications**: End-user products and services that directly benefit individuals
+- **Industrial Use**: Large-scale implementations in manufacturing, logistics, and infrastructure
+
+### Future Considerations
+Looking ahead, several factors will shape the continued development of ${query}:
+
+- **Technological Convergence**: Integration with other emerging technologies
+- **Scale Challenges**: Addressing limitations in widespread adoption
+- **Ethical Considerations**: Ensuring responsible development and implementation
+- **Economic Impact**: Understanding broader implications for markets and employment
 
 ## Related Topics for Further Research
-• Advanced applications of ${query}
-• Comparative analysis with similar technologies
-• Economic impact and market analysis
-• Regulatory and ethical considerations
-• Future technological convergence
+• **Advanced Applications**: Cutting-edge implementations and experimental use cases
+• **Comparative Analysis**: Evaluation against alternative approaches and technologies
+• **Policy & Regulation**: Governance frameworks and compliance requirements
+• **Economic Impact Studies**: Market analysis and financial implications
+• **Technological Integration**: Synergies with complementary technologies and systems
 
 ## Suggested Sources & Citations
-• Academic journals in relevant fields
-• Industry reports and white papers
-• Government publications and data
-• Expert interviews and case studies
-• Recent conference proceedings
+• **Academic Journals**: Peer-reviewed publications in relevant scientific and technical fields
+• **Industry Reports**: Market research and analysis from leading consulting firms
+• **Government Publications**: Official reports, statistics, and policy documents
+• **Expert Interviews**: Insights from leading practitioners and thought leaders
+• **Conference Proceedings**: Recent presentations and findings from major industry events
 
 ---
 *Research completed using DeepSeek R1 AI | ${new Date().toLocaleDateString()}*`;
 
       setResult(fallbackResult);
-      toast.info("📝 Showing demo research result");
+      toast.info("📝 Showing demo research result due to API issue");
     }
     
     setIsLoading(false);
@@ -185,11 +238,11 @@ Primary applications span across:
                     <SelectTrigger className="bg-gradient-to-r from-slate-700/50 to-slate-600/50 border-slate-600/50 text-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gradient-to-r from-slate-800 to-slate-700 border-slate-700 text-white">
-                      <SelectItem value="formal" className="text-white focus:bg-slate-600/50">Formal</SelectItem>
-                      <SelectItem value="informal" className="text-white focus:bg-slate-600/50">Informal</SelectItem>
-                      <SelectItem value="academic" className="text-white focus:bg-slate-600/50">Academic</SelectItem>
-                      <SelectItem value="conversational" className="text-white focus:bg-slate-600/50">Conversational</SelectItem>
+                    <SelectContent className="bg-gradient-to-r from-slate-800 to-slate-700 border-slate-600 z-50">
+                      <SelectItem value="formal" className="text-white hover:bg-slate-600/50 focus:bg-slate-600/50">Formal</SelectItem>
+                      <SelectItem value="informal" className="text-white hover:bg-slate-600/50 focus:bg-slate-600/50">Informal</SelectItem>
+                      <SelectItem value="academic" className="text-white hover:bg-slate-600/50 focus:bg-slate-600/50">Academic</SelectItem>
+                      <SelectItem value="conversational" className="text-white hover:bg-slate-600/50 focus:bg-slate-600/50">Conversational</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -202,11 +255,11 @@ Primary applications span across:
                     <SelectTrigger className="bg-gradient-to-r from-slate-700/50 to-slate-600/50 border-slate-600/50 text-white">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-gradient-to-r from-slate-800 to-slate-700 border-slate-700 text-white">
-                      <SelectItem value="3min" className="text-white focus:bg-slate-600/50">3 minutes</SelectItem>
-                      <SelectItem value="5min" className="text-white focus:bg-slate-600/50">5 minutes</SelectItem>
-                      <SelectItem value="10min" className="text-white focus:bg-slate-600/50">10 minutes</SelectItem>
-                      <SelectItem value="15min" className="text-white focus:bg-slate-600/50">15 minutes</SelectItem>
+                    <SelectContent className="bg-gradient-to-r from-slate-800 to-slate-700 border-slate-600 z-50">
+                      <SelectItem value="3min" className="text-white hover:bg-slate-600/50 focus:bg-slate-600/50">3 minutes</SelectItem>
+                      <SelectItem value="5min" className="text-white hover:bg-slate-600/50 focus:bg-slate-600/50">5 minutes</SelectItem>
+                      <SelectItem value="10min" className="text-white hover:bg-slate-600/50 focus:bg-slate-600/50">10 minutes</SelectItem>
+                      <SelectItem value="15min" className="text-white hover:bg-slate-600/50 focus:bg-slate-600/50">15 minutes</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -295,8 +348,8 @@ Primary applications span across:
                           .replace(/^# (.+)/gm, '<h1 class="text-xl font-bold text-white mb-3 border-b border-slate-600 pb-2">$1</h1>')
                           .replace(/^## (.+)/gm, '<h2 class="text-lg font-semibold text-blue-300 mb-2 mt-4">$1</h2>')
                           .replace(/^### (.+)/gm, '<h3 class="text-md font-medium text-cyan-300 mb-2 mt-3">$1</h3>')
-                          .replace(/^\• (.+)/gm, '<li class="ml-4 text-slate-300">• $1</li>')
-                          .replace(/^- (.+)/gm, '<li class="ml-4 text-slate-300">- $1</li>')
+                          .replace(/^\• (.+)/gm, '<li class="ml-4 text-slate-300 mb-1">• $1</li>')
+                          .replace(/^- (.+)/gm, '<li class="ml-4 text-slate-300 mb-1">- $1</li>')
                           .replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>')
                           .replace(/\*(.+?)\*/g, '<em class="text-slate-300 italic">$1</em>')
                       }}
