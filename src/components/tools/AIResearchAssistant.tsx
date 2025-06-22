@@ -23,13 +23,20 @@ const AIResearchAssistant = () => {
       return;
     }
 
+    // Get API key from localStorage
+    const apiKey = localStorage.getItem('deepseek_api_key');
+    if (!apiKey) {
+      toast.error("Please configure your API key in Settings");
+      return;
+    }
+
     setIsLoading(true);
     
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": "Bearer sk-or-v1-your-api-key-here", // Users need to add their API key
+          "Authorization": `Bearer ${apiKey}`,
           "HTTP-Referer": window.location.origin,
           "X-Title": "Tekly NebulaBench",
           "Content-Type": "application/json"
@@ -90,9 +97,13 @@ This is a comprehensive analysis of ${query} that explores key concepts, current
 • Expert interviews
 • Government publications
 
-*Note: Add your OpenRouter API key to get real AI-powered research results.*`);
+*Note: ${apiKey ? 'Using your configured API key' : 'Add your OpenRouter API key in Settings for real AI research results'}.*`);
       
-      toast.info("Demo mode - Add your API key for real AI research");
+      if (!apiKey) {
+        toast.info("Configure your API key in Settings for real AI research");
+      } else {
+        toast.error("Research failed - check your API key or try again");
+      }
     }
     
     setIsLoading(false);

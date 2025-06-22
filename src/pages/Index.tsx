@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,6 +9,7 @@ import AIResearchAssistant from "@/components/tools/AIResearchAssistant";
 import TaskManager from "@/components/tools/TaskManager";
 import AIWhiteboard from "@/components/tools/AIWhiteboard";
 import SmartSpreadsheet from "@/components/tools/SmartSpreadsheet";
+import Settings from "@/components/tools/Settings";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("home");
@@ -56,6 +56,8 @@ const Index = () => {
         return <AIWhiteboard />;
       case "spreadsheet":
         return <SmartSpreadsheet />;
+      case "settings":
+        return <Settings />;
       default:
         return (
           <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
