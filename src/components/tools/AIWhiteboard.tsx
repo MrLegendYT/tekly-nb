@@ -33,9 +33,9 @@ interface DrawingTool {
   size: number;
 }
 
-interface DrawingState {
-  strokes: any[];
-  currentStroke: any;
+interface ShapeStart {
+  x: number;
+  y: number;
 }
 
 const AIWhiteboard = () => {
@@ -52,6 +52,8 @@ const AIWhiteboard = () => {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [textInput, setTextInput] = useState("");
   const [textPosition, setTextPosition] = useState<{ x: number; y: number } | null>(null);
+  const [shapeStart, setShapeStart] = useState<ShapeStart | null>(null);
+  const [tempCanvas, setTempCanvas] = useState<HTMLCanvasElement | null>(null);
   const [collaborators] = useState([
     { id: 1, name: "Alice", color: "#3b82f6", active: true },
     { id: 2, name: "Bob", color: "#10b981", active: true },
@@ -87,6 +89,12 @@ const AIWhiteboard = () => {
     // Set default styles
     ctx.fillStyle = "#1e293b";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Create temporary canvas for shape preview
+    const temp = document.createElement('canvas');
+    temp.width = canvas.width;
+    temp.height = canvas.height;
+    setTempCanvas(temp);
     
     // Save initial state
     saveToHistory();
@@ -145,6 +153,25 @@ const AIWhiteboard = () => {
     };
   };
 
+  const drawShape = (ctx: CanvasRenderingContext2D, startPos: ShapeStart, currentPos: { x: number; y: number }) => {
+    ctx.strokeStyle = tool.color;
+    ctx.lineWidth = tool.size;
+    ctx.fillStyle = tool.color;
+
+    if (tool.type === "square") {
+      const width = currentPos.x - startPos.x;
+      const height = currentPos.y - startPos.y;
+      ctx.strokeRect(startPos.x, startPos.y, width, height);
+    } else if (tool.type === "circle") {
+      const radius = Math.sqrt(
+        Math.pow(currentPos.x - startPos.x, 2) + Math.pow(currentPos.y - startPos.y, 2)
+      );
+      ctx.beginPath();
+      ctx.arc(startPos.x, startPos.y, radius, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+  };
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -160,6 +187,11 @@ const AIWhiteboard = () => {
       return;
     }
 
+    if (tool.type === "square" || tool.type === "circle") {
+      setShapeStart(pos);
+      return;
+    }
+
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
     ctx.strokeStyle = tool.color;
@@ -169,13 +201,14 @@ const AIWhiteboard = () => {
 
     if (tool.type === "eraser") {
       ctx.globalCompositeOperation = "destination-out";
+      ctx.lineWidth = tool.size * 2; // Make eraser bigger
     } else {
       ctx.globalCompositeOperation = "source-over";
     }
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || tool.type === "text") return;
+    if (!isDrawing) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -188,14 +221,44 @@ const AIWhiteboard = () => {
     if (tool.type === "pen" || tool.type === "eraser") {
       ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
+    } else if ((tool.type === "square" || tool.type === "circle") && shapeStart && tempCanvas) {
+      // Clear temp canvas and redraw shape preview
+      const tempCtx = tempCanvas.getContext("2d");
+      if (!tempCtx) return;
+
+      // Clear temp canvas
+      tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+      
+      // Draw current canvas state to temp canvas
+      tempCtx.drawImage(canvas, 0, 0);
+      
+      // Draw shape preview on temp canvas
+      drawShape(tempCtx, shapeStart, pos);
+      
+      // Copy temp canvas to main canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(tempCanvas, 0, 0);
     }
   };
 
-  const stopDrawing = () => {
-    if (isDrawing && tool.type !== "text") {
-      saveToHistory();
+  const stopDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    if ((tool.type === "square" || tool.type === "circle") && shapeStart) {
+      const pos = getMousePos(e);
+      // Draw final shape
+      drawShape(ctx, shapeStart, pos);
+      setShapeStart(null);
     }
+
     setIsDrawing(false);
+    saveToHistory();
   };
 
   const addText = () => {
